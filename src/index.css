@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:wght@300;400;500;600&family=Lato:wght@300;400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #C9941A;
+  --gold-light: #E8B520;
+  --gold-dark: #8B5A0F;
+  --cream: #F5ECD8;
+  --cream-dark: #EFE0C4;
+  --onyx: #141414;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #FDFAF5;
+  color: #2C1A0E;
+  font-family: 'Lato', system-ui, sans-serif;
+}
+
+@layer components {
+  .gold-divider {
+    @apply w-16 h-px bg-gradient-to-r from-transparent via-yellow-600 to-transparent mx-auto my-4;
+  }
+
+  .btn-gold {
+    @apply bg-gradient-to-r from-gold-600 to-gold-500 text-white font-body tracking-widest uppercase text-xs px-8 py-3 transition-all duration-300 hover:from-gold-700 hover:to-gold-600 hover:shadow-lg active:scale-95;
+  }
+
+  .btn-outline-gold {
+    @apply border border-gold-600 text-gold-700 font-body tracking-widest uppercase text-xs px-8 py-3 transition-all duration-300 hover:bg-gold-600 hover:text-white;
+  }
+
+  .section-title {
+    @apply font-serif text-3xl md:text-4xl text-onyx-800 tracking-wide;
+  }
+
+  .product-card {
+    @apply bg-white border border-cream-200 overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+}
+
+/* Gold gradient text */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #C9941A 0%, #F5DE91 50%, #B07513 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Shimmer effect for gold elements */
+.gold-shimmer {
+  background: linear-gradient(90deg, #C9941A 0%, #F5DE91 30%, #E8B520 60%, #C9941A 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5ECD8;
+}
+::-webkit-scrollbar-thumb {
+  background: #C9941A;
+}
+
+/* Modal overlay */
+.modal-overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
