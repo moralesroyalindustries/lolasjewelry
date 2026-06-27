@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   X, Package, ShoppingBag, BarChart2, Users, Upload,
-  Edit2, Save, Loader2, TrendingUp, DollarSign, LogOut
+  Edit2, Save, Loader2, TrendingUp, DollarSign, LogOut,
+  Plus, Trash2, Eye, EyeOff
 } from 'lucide-react';
 import { Product, Order } from '../types';
 import { supabase } from '../lib/supabase';
@@ -19,14 +20,38 @@ interface MonthlySale {
   orders: number;
 }
 
+interface ProductForm {
+  name: string;
+  description: string;
+  price: number;
+  image_url: string;
+  category: string;
+  stock: number;
+  active: boolean;
+}
+
+const BLANK_FORM: ProductForm = {
+  name: '',
+  description: '',
+  price: 12.00,
+  image_url: '',
+  category: 'cadenas',
+  stock: 10,
+  active: true,
+};
+
+const CATEGORIES = ['cadenas', 'pulseras', 'collares', 'aretes', 'anillos', 'sets'];
+
 export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [tab, setTab] = useState<Tab>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newProduct, setNewProduct] = useState<ProductForm>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,6 +88,8 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
         price: editingProduct.price,
         image_url: editingProduct.image_url,
         category: editingProduct.category,
+        stock: editingProduct.stock,
+        active: editingProduct.active,
       })
       .eq('id', editingProduct.id);
     await loadProducts();
@@ -70,13 +97,43 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
     setSaving(false);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!editingProduct || !e.target.files?.[0]) return;
+  const addProduct = async () => {
+    if (!newProduct.name.trim()) return;
+    setSaving(true);
+    await supabase.from('products').insert([{
+      name: newProduct.name,
+      description: newProduct.description,
+      price: newProduct.price,
+      image_url: newProduct.image_url || '/images/WhatsApp_Image_2026-06-21_at_9.17.55_PM_(1).jpeg',
+      category: newProduct.category,
+      stock: newProduct.stock,
+      active: newProduct.active,
+    }]);
+    await loadProducts();
+    setNewProduct(BLANK_FORM);
+    setShowAddForm(false);
+    setSaving(false);
+  };
+
+  const toggleActive = async (product: Product) => {
+    await supabase
+      .from('products')
+      .update({ active: !product.active })
+      .eq('id', product.id);
+    await loadProducts();
+  };
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'edit' | 'new'
+  ) => {
+    if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
-    setUploading(true);
+    const productId = target === 'edit' ? editingProduct?.id : 'new-' + Date.now();
+    setUploading(target);
 
     const ext = file.name.split('.').pop();
-    const fileName = `products/${editingProduct.id}.${ext}`;
+    const fileName = `products/${productId}.${ext}`;
 
     const { error: upErr } = await supabase.storage
       .from('product-images')
@@ -86,9 +143,13 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
       const { data: urlData } = supabase.storage
         .from('product-images')
         .getPublicUrl(fileName);
-      setEditingProduct(prev => prev ? { ...prev, image_url: urlData.publicUrl } : prev);
+      if (target === 'edit') {
+        setEditingProduct(prev => prev ? { ...prev, image_url: urlData.publicUrl } : prev);
+      } else {
+        setNewProduct(prev => ({ ...prev, image_url: urlData.publicUrl }));
+      }
     }
-    setUploading(false);
+    setUploading(null);
   };
 
   const monthlySales = computeMonthlySales(orders);
@@ -134,6 +195,7 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+
           {/* PRODUCTS TAB */}
           {tab === 'products' && (
             loading ? (
@@ -141,108 +203,251 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
                 <Loader2 size={32} className="animate-spin text-gold-500" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map(product => (
-                  <div key={product.id} className="border border-cream-200 bg-white overflow-hidden">
-                    {editingProduct?.id === product.id ? (
-                      <div className="p-4 space-y-3">
-                        {/* Image Upload */}
-                        <div className="relative aspect-square bg-cream-100 overflow-hidden">
-                          <img
-                            src={editingProduct.image_url}
-                            alt={editingProduct.name}
-                            className="w-full h-full object-cover"
-                          />
-                          <label className="absolute inset-0 flex items-center justify-center bg-onyx-900/50 cursor-pointer hover:bg-onyx-900/60 transition-colors">
-                            {uploading ? (
-                              <Loader2 size={24} className="text-white animate-spin" />
-                            ) : (
-                              <div className="text-white text-center">
-                                <Upload size={24} className="mx-auto mb-1" />
-                                <span className="text-xs">Subir imagen</span>
-                              </div>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
+              <div>
+                {/* Add Product Button */}
+                <div className="flex items-center justify-between mb-6">
+                  <span className="font-serif text-lg text-onyx-800">{products.length} productos</span>
+                  <button
+                    onClick={() => { setShowAddForm(true); setEditingProduct(null); }}
+                    className="btn-gold flex items-center gap-2 text-xs py-2 px-4"
+                  >
+                    <Plus size={14} />
+                    Agregar Producto
+                  </button>
+                </div>
+
+                {/* Add New Product Form */}
+                {showAddForm && (
+                  <div className="border-2 border-gold-300 bg-gold-50 p-5 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-serif text-base text-onyx-800">Nuevo Producto</h3>
+                      <button onClick={() => setShowAddForm(false)} className="text-onyx-400 hover:text-onyx-600">
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Image upload for new product */}
+                      <div className="relative aspect-square bg-cream-100 overflow-hidden md:row-span-2">
+                        {newProduct.image_url ? (
+                          <img src={newProduct.image_url} alt="preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-onyx-300">
+                            <div className="text-center">
+                              <Upload size={32} className="mx-auto mb-2" />
+                              <p className="text-xs font-body">Sin imagen</p>
+                            </div>
+                          </div>
+                        )}
+                        <label className="absolute inset-0 flex items-center justify-center bg-onyx-900/40 cursor-pointer hover:bg-onyx-900/55 transition-colors">
+                          {uploading === 'new' ? (
+                            <Loader2 size={24} className="text-white animate-spin" />
+                          ) : (
+                            <div className="text-white text-center">
+                              <Upload size={20} className="mx-auto mb-1" />
+                              <span className="text-xs">Subir imagen</span>
+                            </div>
+                          )}
+                          <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'new')} className="hidden" />
+                        </label>
+                      </div>
+                      <div className="space-y-3">
                         <input
-                          value={editingProduct.name}
-                          onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                          value={newProduct.name}
+                          onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))}
                           className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
-                          placeholder="Nombre del producto"
+                          placeholder="Nombre del producto *"
                         />
                         <textarea
-                          value={editingProduct.description}
-                          onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                          value={newProduct.description}
+                          onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))}
                           rows={2}
                           className="w-full px-3 py-2 border border-cream-300 text-xs font-body focus:outline-none focus:border-gold-500 resize-none"
                           placeholder="Descripción"
                         />
                         <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="font-body text-xs text-onyx-500 uppercase tracking-wide block mb-1">Precio ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={newProduct.price}
+                              onChange={e => setNewProduct(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
+                              className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="font-body text-xs text-onyx-500 uppercase tracking-wide block mb-1">Unidades</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={newProduct.stock}
+                              onChange={e => setNewProduct(p => ({ ...p, stock: parseInt(e.target.value) || 0 }))}
+                              className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
+                            />
+                          </div>
+                        </div>
+                        <select
+                          value={newProduct.category}
+                          onChange={e => setNewProduct(p => ({ ...p, category: e.target.value }))}
+                          className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500 bg-white"
+                        >
+                          {CATEGORIES.map(c => (
+                            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={addProduct}
+                        disabled={saving || !newProduct.name.trim()}
+                        className="btn-gold flex items-center justify-center gap-2 text-xs py-2 px-6 disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        Guardar Producto
+                      </button>
+                      <button onClick={() => setShowAddForm(false)} className="btn-outline-gold text-xs py-2 px-4">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Product Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {products.map(product => (
+                    <div key={product.id} className={`border overflow-hidden ${product.active ? 'border-cream-200' : 'border-cream-200 opacity-60'}`}>
+                      {editingProduct?.id === product.id ? (
+                        <div className="p-4 space-y-3">
+                          {/* Image Upload */}
+                          <div className="relative aspect-square bg-cream-100 overflow-hidden">
+                            <img
+                              src={editingProduct.image_url || '/images/WhatsApp_Image_2026-06-21_at_9.17.55_PM_(1).jpeg'}
+                              alt={editingProduct.name}
+                              className="w-full h-full object-cover"
+                              onError={e => (e.currentTarget.src = '/images/WhatsApp_Image_2026-06-21_at_9.17.55_PM_(1).jpeg')}
+                            />
+                            <label className="absolute inset-0 flex items-center justify-center bg-onyx-900/50 cursor-pointer hover:bg-onyx-900/60 transition-colors">
+                              {uploading === 'edit' ? (
+                                <Loader2 size={24} className="text-white animate-spin" />
+                              ) : (
+                                <div className="text-white text-center">
+                                  <Upload size={24} className="mx-auto mb-1" />
+                                  <span className="text-xs">Subir imagen</span>
+                                </div>
+                              )}
+                              <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'edit')} className="hidden" />
+                            </label>
+                          </div>
                           <input
-                            type="number"
-                            step="0.01"
-                            value={editingProduct.price}
-                            onChange={e => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })}
-                            className="w-24 px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
-                            placeholder="Precio"
+                            value={editingProduct.name}
+                            onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                            className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
+                            placeholder="Nombre del producto"
                           />
-                          <input
+                          <textarea
+                            value={editingProduct.description}
+                            onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                            rows={2}
+                            className="w-full px-3 py-2 border border-cream-300 text-xs font-body focus:outline-none focus:border-gold-500 resize-none"
+                            placeholder="Descripción"
+                          />
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="font-body text-xs text-onyx-500 uppercase tracking-wide block mb-1">Precio ($)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editingProduct.price}
+                                onChange={e => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="font-body text-xs text-onyx-500 uppercase tracking-wide block mb-1">Unidades</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingProduct.stock}
+                                onChange={e => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
+                              />
+                            </div>
+                          </div>
+                          <select
                             value={editingProduct.category}
                             onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                            className="flex-1 px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500"
-                            placeholder="Categoría"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={saveProduct}
-                            disabled={saving}
-                            className="btn-gold flex-1 flex items-center justify-center gap-1 text-xs py-2"
+                            className="w-full px-3 py-2 border border-cream-300 text-sm font-body focus:outline-none focus:border-gold-500 bg-white"
                           >
-                            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                            Guardar
-                          </button>
-                          <button
-                            onClick={() => setEditingProduct(null)}
-                            className="btn-outline-gold flex-1 text-xs py-2"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="aspect-square overflow-hidden">
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="p-3">
-                          <p className="font-serif text-sm text-onyx-800 mb-1 leading-snug">{product.name}</p>
-                          <p className="font-body text-xs text-onyx-500 mb-2 line-clamp-2">{product.description}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="font-serif text-gold-600">${product.price.toFixed(2)}</span>
+                            {CATEGORIES.map(c => (
+                              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                            ))}
+                          </select>
+                          <div className="flex gap-2">
                             <button
-                              onClick={() => setEditingProduct({ ...product })}
-                              className="flex items-center gap-1 text-xs font-body text-onyx-500 hover:text-gold-600 transition-colors px-2 py-1 border border-cream-200 hover:border-gold-300"
+                              onClick={saveProduct}
+                              disabled={saving}
+                              className="btn-gold flex-1 flex items-center justify-center gap-1 text-xs py-2"
                             >
-                              <Edit2 size={11} />
-                              Editar
+                              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                              Guardar
+                            </button>
+                            <button
+                              onClick={() => setEditingProduct(null)}
+                              className="btn-outline-gold flex-1 text-xs py-2"
+                            >
+                              Cancelar
                             </button>
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <>
+                          <div className="aspect-square overflow-hidden relative">
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={e => (e.currentTarget.src = '/images/WhatsApp_Image_2026-06-21_at_9.17.55_PM_(1).jpeg')}
+                            />
+                            {!product.active && (
+                              <div className="absolute inset-0 bg-onyx-900/40 flex items-center justify-center">
+                                <span className="bg-white text-onyx-700 text-xs font-body px-2 py-1">Oculto</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3">
+                            <p className="font-serif text-sm text-onyx-800 mb-1 leading-snug">{product.name}</p>
+                            <p className="font-body text-xs text-onyx-500 mb-2 line-clamp-2">{product.description}</p>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-serif text-gold-600">${Number(product.price).toFixed(2)}</span>
+                              <span className={`font-body text-xs ${product.stock === 0 ? 'text-red-500' : product.stock <= 5 ? 'text-amber-500' : 'text-green-600'}`}>
+                                {product.stock} uds.
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => { setEditingProduct({ ...product }); setShowAddForm(false); }}
+                                className="flex-1 flex items-center justify-center gap-1 text-xs font-body text-onyx-500 hover:text-gold-600 transition-colors px-2 py-1.5 border border-cream-200 hover:border-gold-300"
+                              >
+                                <Edit2 size={11} />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => toggleActive(product)}
+                                title={product.active ? 'Ocultar producto' : 'Mostrar producto'}
+                                className="flex items-center justify-center gap-1 text-xs font-body text-onyx-500 hover:text-gold-600 transition-colors px-2 py-1.5 border border-cream-200 hover:border-gold-300"
+                              >
+                                {product.active ? <EyeOff size={11} /> : <Eye size={11} />}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )
           )}
@@ -301,7 +506,6 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
           {/* SALES TAB */}
           {tab === 'sales' && (
             <div>
-              {/* KPIs */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                 <div className="border border-cream-200 p-5 bg-cream-50">
                   <div className="flex items-center gap-2 mb-2">
@@ -328,7 +532,6 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
                 </div>
               </div>
 
-              {/* Monthly table */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <BarChart2 size={16} className="text-gold-600" />
